@@ -121,9 +121,18 @@ spec:
       labels:
         app: session-service
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
       containers:
         - name: session-service
           image: node:20-alpine
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           command: ["node", "/app/server.js"]
           env:
             - name: PORT

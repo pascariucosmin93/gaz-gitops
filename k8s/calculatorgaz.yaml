@@ -20,9 +20,16 @@ spec:
     spec:
       imagePullSecrets:
         - name: registry-infraejobs
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 1001
       initContainers:
         - name: ensure-db-gaz
           image: postgres:16-alpine
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: PGPASSWORD
               valueFrom:
@@ -48,6 +55,11 @@ spec:
         - name: calculatorgaz
           image: registry.infraejobs.ro/infra/gaz/calculatorgaz:kube
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: ["ALL"]
           ports:
             - containerPort: 3000
           resources:
