@@ -27,6 +27,7 @@ spec:
         - name: ensure-db-gaz
           image: postgres:16-alpine
           securityContext:
+            runAsUser: 70
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
