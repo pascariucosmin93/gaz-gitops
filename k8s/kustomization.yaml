@@ -17,4 +17,4 @@ resources:
 # CI updates the tag here on every successful build; Argo syncs the change.
 images:
   - name: registry.infraejobs.ro/infra/gaz/calculatorgaz
-    newTag: "kube"
+    newTag: "798157"
