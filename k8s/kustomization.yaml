@@ -11,6 +11,7 @@ resources:
   - password-reset-service.yaml
   - reading-service.yaml
   - reporting-service.yaml
+  - session-service.yaml
 
 # Single source of truth for runtime image versions used by Argo CD.
 # CI updates the tag here on every successful build; Argo syncs the change.
