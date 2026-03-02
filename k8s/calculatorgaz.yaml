@@ -57,6 +57,7 @@ spec:
           image: registry.infraejobs.ro/infra/gaz/calculatorgaz:kube
           imagePullPolicy: IfNotPresent
           securityContext:
+            runAsUser: 1001
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
             capabilities:
