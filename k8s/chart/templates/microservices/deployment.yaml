@@ -5,7 +5,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ $name }}
-  namespace: {{ $.Release.Namespace }}
+  namespace: {{ $.Values.namespace }}
   labels:
     {{- include "gaz.labels" $ | nindent 4 }}
     {{- include "gaz.selectorLabels" $name | nindent 4 }}

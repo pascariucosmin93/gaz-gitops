@@ -4,7 +4,7 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: calculatorgaz
-  namespace: {{ $.Release.Namespace }}
+  namespace: {{ $.Values.namespace }}
   labels:
     {{- include "gaz.labels" $ | nindent 4 }}
 spec:

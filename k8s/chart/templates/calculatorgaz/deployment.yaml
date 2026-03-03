@@ -3,7 +3,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: calculatorgaz
-  namespace: {{ $.Release.Namespace }}
+  namespace: {{ $.Values.namespace }}
   labels:
     {{- include "gaz.labels" $ | nindent 4 }}
     {{- include "gaz.selectorLabels" "calculatorgaz" | nindent 4 }}
