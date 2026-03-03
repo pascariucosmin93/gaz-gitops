@@ -19,13 +19,15 @@ spec:
         spec:
           restartPolicy: OnFailure
           automountServiceAccountToken: false
+          imagePullSecrets:
+            - name: registry-infraejobs
           securityContext:
             runAsNonRoot: true
             runAsUser: 70
             fsGroup: 70
           containers:
             - name: backup-db
-              image: postgres:16-alpine
+              image: registry.infraejobs.ro/infra/gaz/backup-db:latest
               securityContext:
                 allowPrivilegeEscalation: false
                 capabilities:
@@ -67,7 +69,6 @@ spec:
                 - sh
                 - -ec
                 - |
-                  apk add --no-cache aws-cli > /dev/null 2>&1
                   DATE=$(date +%Y-%m-%d_%H%M)
                   FILENAME="gaz-${DATE}.sql.gz"
                   echo "==> Starting pg_dump of database ${PGDATABASE}..."
