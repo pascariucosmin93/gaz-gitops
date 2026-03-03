@@ -12,7 +12,7 @@ networkPolicies:
 calculatorgaz:
   image:
     repository: registry.infraejobs.ro/infra/gaz/calculatorgaz
-    tag: "ac9445"
+    tag: "279e86"
     pullPolicy: IfNotPresent
 
   imagePullSecrets:
