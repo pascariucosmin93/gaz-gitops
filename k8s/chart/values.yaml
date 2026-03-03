@@ -1009,3 +1009,28 @@ microservices:
       server.listen(PORT, '0.0.0.0', () => {
         console.log(`session-service listening on ${PORT}`);
       });
+
+# ---------------------------------------------------------------------------
+# Backup CronJobs - DB + Secrets → S3
+# ---------------------------------------------------------------------------
+backup:
+  enabled: true
+
+  s3:
+    endpoint: "https://s3.galeata.devjobs.ro"
+    region: "us-east-1"
+    secretName: backup-s3-credentials
+
+  db:
+    schedule: "0 2 * * *"
+    bucket: backup-db
+    retentionDays: 30
+    host: "postgres.postgress.svc.cluster.local"
+    port: "5432"
+    database: "gaz"
+    pgSecretName: calculatorgaz-secrets
+
+  secrets:
+    schedule: "0 3 * * *"
+    bucket: backup-secrets-gaz
+    retentionDays: 30
