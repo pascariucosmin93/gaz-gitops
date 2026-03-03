@@ -30,11 +30,11 @@ calculatorgaz:
 
   resources:
     requests:
-      cpu: "200m"
-      memory: "256Mi"
+      cpu: "50m"
+      memory: "96Mi"
     limits:
-      cpu: "1000m"
-      memory: "512Mi"
+      cpu: "500m"
+      memory: "256Mi"
 
   hpa:
     enabled: true
@@ -126,11 +126,11 @@ microservices:
         secretKey: INTERNAL_API_KEY
     resources:
       requests:
-        cpu: "100m"
-        memory: "128Mi"
+        cpu: "20m"
+        memory: "32Mi"
       limits:
-        cpu: "500m"
-        memory: "256Mi"
+        cpu: "200m"
+        memory: "128Mi"
     script: |
       const http = require('http');
 
@@ -237,11 +237,11 @@ microservices:
     secretEnv: []
     resources:
       requests:
-        cpu: "100m"
-        memory: "128Mi"
+        cpu: "20m"
+        memory: "32Mi"
       limits:
-        cpu: "500m"
-        memory: "256Mi"
+        cpu: "200m"
+        memory: "128Mi"
     script: |
       const http = require('http');
 
@@ -355,11 +355,11 @@ microservices:
         secretKey: INTERNAL_API_KEY
     resources:
       requests:
-        cpu: "100m"
-        memory: "128Mi"
+        cpu: "20m"
+        memory: "32Mi"
       limits:
-        cpu: "500m"
-        memory: "256Mi"
+        cpu: "200m"
+        memory: "128Mi"
     script: |
       const http = require('http');
 
@@ -448,11 +448,11 @@ microservices:
     secretEnv: []
     resources:
       requests:
-        cpu: "100m"
-        memory: "128Mi"
+        cpu: "20m"
+        memory: "32Mi"
       limits:
-        cpu: "500m"
-        memory: "256Mi"
+        cpu: "200m"
+        memory: "128Mi"
     script: |
       const http = require('http');
 
@@ -637,11 +637,11 @@ microservices:
         secretKey: DISCORD_WEBHOOK_URL
     resources:
       requests:
-        cpu: "50m"
-        memory: "64Mi"
+        cpu: "20m"
+        memory: "32Mi"
       limits:
-        cpu: "300m"
-        memory: "192Mi"
+        cpu: "150m"
+        memory: "96Mi"
     script: |
       const http = require('http');
 
@@ -731,11 +731,11 @@ microservices:
         secretKey: INTERNAL_API_KEY
     resources:
       requests:
-        cpu: "100m"
-        memory: "128Mi"
+        cpu: "20m"
+        memory: "32Mi"
       limits:
-        cpu: "500m"
-        memory: "256Mi"
+        cpu: "200m"
+        memory: "128Mi"
     script: |
       const http = require('http');
 
@@ -817,11 +817,11 @@ microservices:
         secretKey: INTERNAL_API_KEY
     resources:
       requests:
-        cpu: "100m"
-        memory: "128Mi"
+        cpu: "20m"
+        memory: "32Mi"
       limits:
-        cpu: "500m"
-        memory: "256Mi"
+        cpu: "200m"
+        memory: "128Mi"
     script: |
       const http = require('http');
 
@@ -909,11 +909,11 @@ microservices:
         secretKey: JWT_SECRET
     resources:
       requests:
-        cpu: "50m"
-        memory: "64Mi"
+        cpu: "20m"
+        memory: "32Mi"
       limits:
-        cpu: "300m"
-        memory: "192Mi"
+        cpu: "150m"
+        memory: "96Mi"
     script: |
       const http = require('http');
       const crypto = require('crypto');
