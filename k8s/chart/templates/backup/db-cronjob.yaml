@@ -28,6 +28,7 @@ spec:
           containers:
             - name: backup-db
               image: registry.infraejobs.ro/infra/gaz/backup-db:latest
+              imagePullPolicy: Always
               securityContext:
                 allowPrivilegeEscalation: false
                 capabilities:
