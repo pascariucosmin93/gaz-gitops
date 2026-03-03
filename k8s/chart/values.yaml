@@ -40,8 +40,8 @@ calculatorgaz:
     enabled: true
     minReplicas: 1
     maxReplicas: 10
-    targetCPUUtilizationPercentage: 80
-    targetMemoryUtilizationPercentage: 95
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 70
     behavior:
       scaleUp:
         stabilizationWindowSeconds: 30
