@@ -1,0 +1,1009 @@
+# ---------------------------------------------------------------------------
+# calculatorgaz - main Next.js application
+# ---------------------------------------------------------------------------
+calculatorgaz:
+  image:
+    repository: registry.infraejobs.ro/infra/gaz/calculatorgaz
+    tag: "dd039c"
+    pullPolicy: IfNotPresent
+
+  imagePullSecrets:
+    - name: registry-infraejobs
+
+  replicaCount: 1
+
+  service:
+    type: LoadBalancer
+    port: 80
+    targetPort: 3000
+    labels:
+      cilium.io/lb-pool: pool-2
+      cilium.io/bgp-advertise: "true"
+
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "256Mi"
+    limits:
+      cpu: "1000m"
+      memory: "512Mi"
+
+  hpa:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+    behavior:
+      scaleUp:
+        stabilizationWindowSeconds: 30
+        policies:
+          - type: Percent
+            value: 100
+            periodSeconds: 30
+      scaleDown:
+        stabilizationWindowSeconds: 120
+        policies:
+          - type: Percent
+            value: 50
+            periodSeconds: 60
+
+  initContainer:
+    image: postgres:16-alpine
+
+  env:
+    HOSTNAME: "0.0.0.0"
+    RESET_PASSWORD_BASE_URL: "https://reset.gaz.cosmin-lab.cloud/"
+    BILLING_SERVICE_URL: "http://billing-service:8080"
+    REPORTING_SERVICE_URL: "http://reporting-service:8081"
+    NOTIFICATION_SERVICE_URL: "http://notification-service:8082"
+    AUTH_SERVICE_URL: "http://auth-service:8083"
+    READING_SERVICE_URL: "http://reading-service:8084"
+    PASSWORD_RESET_SERVICE_URL: "http://password-reset-service:8086"
+    INVOICE_SERVICE_URL: "http://invoice-service:8087"
+    SESSION_SERVICE_URL: "http://session-service:8088"
+    SEAWEED_S3_ENDPOINT: "https://s3.galeata.devjobs.ro"
+    SEAWEED_S3_REGION: "us-east-1"
+    SEAWEED_S3_BUCKET: "facturi"
+    ADMIN_EMAIL: "admin@gmail.com"
+    NEXT_PUBLIC_ADMIN_EMAIL: "admin@gmail.com"
+
+  secretName: calculatorgaz-secrets
+  secretEnv:
+    - envKey: DATABASE_URL
+      secretKey: DATABASE_URL
+    - envKey: DISCORD_RESET_WEBHOOK_URL
+      secretKey: DISCORD_RESET_WEBHOOK_URL
+    - envKey: SEAWEED_S3_ACCESS_KEY
+      secretKey: SEAWEED_S3_ACCESS_KEY
+    - envKey: SEAWEED_S3_SECRET_KEY
+      secretKey: SEAWEED_S3_SECRET_KEY
+    - envKey: INTERNAL_API_KEY
+      secretKey: INTERNAL_API_KEY
+    - envKey: ADMIN_PASSWORD
+      secretKey: ADMIN_PASSWORD
+
+  initSecretEnv:
+    - envKey: PGPASSWORD
+      secretKey: POSTGRES_PASSWORD
+    - envKey: POSTGRES_USER
+      secretKey: POSTGRES_USER
+
+  probes:
+    readiness:
+      path: /api/health
+      port: 3000
+      initialDelaySeconds: 20
+      periodSeconds: 10
+    liveness:
+      path: /api/health
+      port: 3000
+      initialDelaySeconds: 40
+      periodSeconds: 15
+
+# ---------------------------------------------------------------------------
+# Microservices - ConfigMap-based Node.js services
+# ---------------------------------------------------------------------------
+microservices:
+
+  auth-service:
+    enabled: true
+    port: 8083
+    env:
+      PORT: "8083"
+      APP_BASE_URL: "http://calculatorgaz"
+    secretName: calculatorgaz-secrets
+    secretEnv:
+      - envKey: INTERNAL_API_KEY
+        secretKey: INTERNAL_API_KEY
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "256Mi"
+    script: |
+      const http = require('http');
+
+      const PORT = Number(process.env.PORT || 8083);
+      const APP_BASE_URL = (process.env.APP_BASE_URL || 'http://calculatorgaz').replace(/\/+$/, '');
+      const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
+
+      const readJson = (req) =>
+        new Promise((resolve, reject) => {
+          let body = '';
+          req.on('data', (chunk) => {
+            body += chunk;
+            if (body.length > 1024 * 1024) {
+              reject(new Error('Payload too large'));
+              req.destroy();
+            }
+          });
+          req.on('end', () => {
+            try {
+              resolve(body ? JSON.parse(body) : {});
+            } catch {
+              reject(new Error('Invalid JSON'));
+            }
+          });
+          req.on('error', reject);
+        });
+
+      const writeJson = (res, status, payload) => {
+        res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload));
+      };
+
+      const proxyJson = async (targetPath, method, payload) => {
+        const response = await fetch(`${APP_BASE_URL}${targetPath}`, {
+          method,
+          headers: { 'Content-Type': 'application/json', 'X-Internal-Api-Key': INTERNAL_API_KEY },
+          body: payload ? JSON.stringify(payload) : undefined
+        });
+        const text = await response.text();
+        return {
+          status: response.status,
+          contentType: response.headers.get('content-type') || 'application/json; charset=utf-8',
+          body: text
+        };
+      };
+
+      const server = http.createServer(async (req, res) => {
+        try {
+          if (req.method === 'GET' && req.url === '/health') {
+            return writeJson(res, 200, { ok: true });
+          }
+
+          if (req.method === 'POST' && req.url === '/auth/signup') {
+            const payload = await readJson(req);
+            const upstream = await proxyJson('/api/internal/auth/signup', 'POST', payload);
+            res.writeHead(upstream.status, { 'Content-Type': upstream.contentType });
+            return res.end(upstream.body);
+          }
+
+          if (req.method === 'POST' && req.url === '/auth/login') {
+            const payload = await readJson(req);
+            const upstream = await proxyJson('/api/internal/auth/login', 'POST', payload);
+            res.writeHead(upstream.status, { 'Content-Type': upstream.contentType });
+            return res.end(upstream.body);
+          }
+
+          if (req.method === 'PATCH' && req.url === '/auth/profile') {
+            const payload = await readJson(req);
+            const upstream = await proxyJson('/api/internal/auth/profile', 'PATCH', payload);
+            res.writeHead(upstream.status, { 'Content-Type': upstream.contentType });
+            return res.end(upstream.body);
+          }
+
+          if (req.method === 'POST' && req.url === '/auth/reset-password') {
+            const payload = await readJson(req);
+            const upstream = await proxyJson('/api/internal/auth/reset-password', 'POST', payload);
+            res.writeHead(upstream.status, { 'Content-Type': upstream.contentType });
+            return res.end(upstream.body);
+          }
+
+          if (req.method === 'POST' && req.url === '/auth/reset-password/confirm') {
+            const payload = await readJson(req);
+            const upstream = await proxyJson('/api/internal/auth/reset-password/confirm', 'POST', payload);
+            res.writeHead(upstream.status, { 'Content-Type': upstream.contentType });
+            return res.end(upstream.body);
+          }
+
+          return writeJson(res, 404, { error: 'Not found' });
+        } catch (error) {
+          return writeJson(res, 500, { error: error.message || 'Unexpected error' });
+        }
+      });
+
+      server.listen(PORT, '0.0.0.0', () => {
+        console.log(`auth-service listening on ${PORT}`);
+      });
+
+  billing-service:
+    enabled: true
+    port: 8080
+    env:
+      PORT: "8080"
+    secretName: ""
+    secretEnv: []
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "256Mi"
+    script: |
+      const http = require('http');
+
+      const readJson = (req) =>
+        new Promise((resolve, reject) => {
+          let body = '';
+          req.on('data', (chunk) => {
+            body += chunk;
+            if (body.length > 1024 * 1024) {
+              reject(new Error('Payload too large'));
+              req.destroy();
+            }
+          });
+          req.on('end', () => {
+            try {
+              resolve(body ? JSON.parse(body) : {});
+            } catch {
+              reject(new Error('Invalid JSON'));
+            }
+          });
+          req.on('error', reject);
+        });
+
+      const calculate = (input) => {
+        const consumptionM3 = input.currentReading - input.previousReading;
+        const consumptionKwh = consumptionM3 * input.pcs;
+        const consumptionMwh = consumptionKwh / 1000;
+
+        const gasCost = consumptionMwh * input.gasPriceMwh;
+        const transportCost = consumptionMwh * input.transportPriceMwh;
+        const distributionCost = consumptionMwh * input.distributionPriceMwh;
+        const cap26Cost = consumptionMwh * input.cap26PriceMwh;
+        const cap6Cost = consumptionMwh * input.cap6PriceMwh;
+
+        const baseCost = gasCost + transportCost + distributionCost;
+        const adjustmentCost = cap26Cost + cap6Cost;
+        const variableCost = baseCost + adjustmentCost;
+
+        const pricePerKwh = variableCost / consumptionKwh;
+        const pricePerM3 = variableCost / consumptionM3;
+        const subtotal = variableCost + input.fixedFee;
+        const vat = input.includeVat ? subtotal * input.vatRate : 0;
+        const total = subtotal + vat;
+        const pricePerKwhWithVat = input.includeVat ? pricePerKwh * (1 + input.vatRate) : pricePerKwh;
+        const pricePerM3WithVat = input.includeVat ? pricePerM3 * (1 + input.vatRate) : pricePerM3;
+
+        return {
+          consumptionM3,
+          consumptionKwh,
+          consumptionMwh,
+          pcs: input.pcs,
+          variableCost,
+          pricePerKwh,
+          pricePerKwhWithVat,
+          pricePerM3,
+          pricePerM3WithVat,
+          baseCost,
+          adjustmentCost,
+          fixedFee: input.fixedFee,
+          subtotal,
+          vat,
+          vatRate: input.vatRate,
+          total,
+          breakdown: {
+            gas: { unitPriceMwh: input.gasPriceMwh, value: gasCost },
+            transport: { unitPriceMwh: input.transportPriceMwh, value: transportCost },
+            distribution: { unitPriceMwh: input.distributionPriceMwh, value: distributionCost },
+            cap26: { unitPriceMwh: input.cap26PriceMwh, value: cap26Cost },
+            cap6: { unitPriceMwh: input.cap6PriceMwh, value: cap6Cost }
+          }
+        };
+      };
+
+      const server = http.createServer(async (req, res) => {
+        if (req.method === 'GET' && req.url === '/health') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true }));
+          return;
+        }
+
+        if (req.method === 'POST' && req.url === '/calculate') {
+          try {
+            const payload = await readJson(req);
+            const result = calculate(payload);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(result));
+          } catch (error) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: error.message || 'Bad request' }));
+          }
+          return;
+        }
+
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Not found' }));
+      });
+
+      server.listen(8080, '0.0.0.0', () => {
+        console.log('billing-service listening on 8080');
+      });
+
+  reading-service:
+    enabled: true
+    port: 8084
+    env:
+      PORT: "8084"
+      APP_BASE_URL: "http://calculatorgaz"
+    secretName: calculatorgaz-secrets
+    secretEnv:
+      - envKey: INTERNAL_API_KEY
+        secretKey: INTERNAL_API_KEY
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "256Mi"
+    script: |
+      const http = require('http');
+
+      const PORT = Number(process.env.PORT || 8084);
+      const APP_BASE_URL = (process.env.APP_BASE_URL || 'http://calculatorgaz').replace(/\/+$/, '');
+      const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
+
+      const readJson = (req) =>
+        new Promise((resolve, reject) => {
+          let body = '';
+          req.on('data', (chunk) => {
+            body += chunk;
+            if (body.length > 1024 * 1024) {
+              reject(new Error('Payload too large'));
+              req.destroy();
+            }
+          });
+          req.on('end', () => {
+            try {
+              resolve(body ? JSON.parse(body) : {});
+            } catch {
+              reject(new Error('Invalid JSON'));
+            }
+          });
+          req.on('error', reject);
+        });
+
+      const writeJson = (res, status, payload) => {
+        res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload));
+      };
+
+      const proxyJson = async (targetPath, method, payload) => {
+        const response = await fetch(`${APP_BASE_URL}${targetPath}`, {
+          method,
+          headers: { 'Content-Type': 'application/json', 'X-Internal-Api-Key': INTERNAL_API_KEY },
+          body: payload ? JSON.stringify(payload) : undefined
+        });
+        const text = await response.text();
+        return {
+          status: response.status,
+          contentType: response.headers.get('content-type') || 'application/json; charset=utf-8',
+          body: text
+        };
+      };
+
+      const server = http.createServer(async (req, res) => {
+        try {
+          const url = new URL(req.url, `http://${req.headers.host}`);
+
+          if (req.method === 'GET' && url.pathname === '/health') {
+            return writeJson(res, 200, { ok: true });
+          }
+
+          if (req.method === 'GET' && url.pathname === '/readings') {
+            const userId = (url.searchParams.get('userId') || '').trim();
+            const upstream = await proxyJson(`/api/internal/readings?userId=${encodeURIComponent(userId)}`, 'GET');
+            res.writeHead(upstream.status, { 'Content-Type': upstream.contentType });
+            return res.end(upstream.body);
+          }
+
+          if (req.method === 'POST' && url.pathname === '/readings') {
+            const payload = await readJson(req);
+            const upstream = await proxyJson('/api/internal/readings', 'POST', payload);
+            res.writeHead(upstream.status, { 'Content-Type': upstream.contentType });
+            return res.end(upstream.body);
+          }
+
+          return writeJson(res, 404, { error: 'Not found' });
+        } catch (error) {
+          return writeJson(res, 500, { error: error.message || 'Unexpected error' });
+        }
+      });
+
+      server.listen(PORT, '0.0.0.0', () => {
+        console.log(`reading-service listening on ${PORT}`);
+      });
+
+  reporting-service:
+    enabled: true
+    port: 8081
+    env:
+      PORT: "8081"
+      APP_BASE_URL: "http://calculatorgaz"
+    secretName: ""
+    secretEnv: []
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "256Mi"
+    script: |
+      const http = require('http');
+
+      const PORT = Number(process.env.PORT || 8081);
+      const APP_BASE_URL = (process.env.APP_BASE_URL || 'http://calculatorgaz').replace(/\/+$/, '');
+
+      const json = (res, code, payload) => {
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload));
+      };
+
+      const parseReadings = async (userId) => {
+        const response = await fetch(`${APP_BASE_URL}/api/readings?userId=${encodeURIComponent(userId)}`);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch readings (${response.status})`);
+        }
+        const data = await response.json();
+        if (!Array.isArray(data)) {
+          throw new Error('Invalid readings payload');
+        }
+        return data;
+      };
+
+      const monthKey = (iso) => {
+        const d = new Date(iso);
+        const y = d.getUTCFullYear();
+        const m = `${d.getUTCMonth() + 1}`.padStart(2, '0');
+        return `${y}-${m}`;
+      };
+
+      const aggregateMonthly = (readings) => {
+        const map = new Map();
+        for (const r of readings) {
+          const key = monthKey(r.createdAt);
+          const current = map.get(key) || { month: key, entries: 0, consumptionM3: 0, consumptionKwh: 0, total: 0 };
+          current.entries += 1;
+          current.consumptionM3 += Number(r.consumptionM3 || 0);
+          current.consumptionKwh += Number(r.consumptionKwh || 0);
+          current.total += Number(r.total || 0);
+          map.set(key, current);
+        }
+        return [...map.values()].sort((a, b) => a.month.localeCompare(b.month));
+      };
+
+      const compareMonths = (monthly, monthA, monthB) => {
+        const a = monthly.find((m) => m.month === monthA);
+        const b = monthly.find((m) => m.month === monthB);
+        if (!a || !b) {
+          return null;
+        }
+        return {
+          monthA: a,
+          monthB: b,
+          delta: {
+            consumptionM3: b.consumptionM3 - a.consumptionM3,
+            consumptionKwh: b.consumptionKwh - a.consumptionKwh,
+            total: b.total - a.total
+          }
+        };
+      };
+
+      const toCsv = (monthly) => {
+        const header = 'month,entries,consumption_m3,consumption_kwh,total_lei';
+        const rows = monthly.map((m) => [
+          m.month,
+          m.entries,
+          m.consumptionM3.toFixed(3),
+          m.consumptionKwh.toFixed(3),
+          m.total.toFixed(2)
+        ].join(','));
+        return [header, ...rows].join('\n');
+      };
+
+      const escapePdfText = (value) => String(value).replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+
+      const toSimplePdf = (lines) => {
+        const content = lines
+          .map((line, idx) => `BT /F1 11 Tf 50 ${770 - idx * 16} Td (${escapePdfText(line)}) Tj ET`)
+          .join('\n');
+
+        const objects = [];
+        objects.push('1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj');
+        objects.push('2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj');
+        objects.push('3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj');
+        objects.push('4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj');
+        objects.push(`5 0 obj << /Length ${Buffer.byteLength(content, 'utf8')} >> stream\n${content}\nendstream endobj`);
+
+        let body = '%PDF-1.4\n';
+        const offsets = [0];
+        for (const obj of objects) {
+          offsets.push(Buffer.byteLength(body, 'utf8'));
+          body += `${obj}\n`;
+        }
+        const xrefPos = Buffer.byteLength(body, 'utf8');
+        body += `xref\n0 ${objects.length + 1}\n`;
+        body += '0000000000 65535 f \n';
+        for (let i = 1; i <= objects.length; i += 1) {
+          body += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`;
+        }
+        body += `trailer << /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefPos}\n%%EOF\n`;
+        return Buffer.from(body, 'utf8');
+      };
+
+      const server = http.createServer(async (req, res) => {
+        try {
+          const url = new URL(req.url, `http://${req.headers.host}`);
+
+          if (req.method === 'GET' && url.pathname === '/health') {
+            return json(res, 200, { ok: true });
+          }
+
+          if (req.method !== 'GET') {
+            return json(res, 405, { error: 'Method not allowed' });
+          }
+
+          const userId = (url.searchParams.get('userId') || '').trim();
+          if (!userId) {
+            return json(res, 400, { error: 'Missing userId query param' });
+          }
+
+          const readings = await parseReadings(userId);
+          const monthly = aggregateMonthly(readings);
+
+          if (url.pathname === '/report/monthly') {
+            return json(res, 200, { userId, months: monthly });
+          }
+
+          if (url.pathname === '/report/compare') {
+            const monthA = (url.searchParams.get('monthA') || '').trim();
+            const monthB = (url.searchParams.get('monthB') || '').trim();
+            if (!monthA || !monthB) {
+              return json(res, 400, { error: 'monthA and monthB are required (YYYY-MM)' });
+            }
+            const comparison = compareMonths(monthly, monthA, monthB);
+            if (!comparison) {
+              return json(res, 404, { error: 'One or both months not found in readings' });
+            }
+            return json(res, 200, comparison);
+          }
+
+          if (url.pathname === '/report/export.csv') {
+            const csv = toCsv(monthly);
+            res.writeHead(200, {
+              'Content-Type': 'text/csv; charset=utf-8',
+              'Content-Disposition': `attachment; filename="report-${userId}.csv"`
+            });
+            return res.end(csv);
+          }
+
+          if (url.pathname === '/report/export.pdf') {
+            const lines = [
+              `Gas Consumption Report for user ${userId}`,
+              'Month | Entries | m3 | kWh | Total Lei',
+              ...monthly.map((m) => `${m.month} | ${m.entries} | ${m.consumptionM3.toFixed(2)} | ${m.consumptionKwh.toFixed(0)} | ${m.total.toFixed(2)}`)
+            ];
+            const pdf = toSimplePdf(lines);
+            res.writeHead(200, {
+              'Content-Type': 'application/pdf',
+              'Content-Disposition': `attachment; filename="report-${userId}.pdf"`
+            });
+            return res.end(pdf);
+          }
+
+          return json(res, 404, { error: 'Not found' });
+        } catch (error) {
+          return json(res, 500, { error: error.message || 'Unexpected error' });
+        }
+      });
+
+      server.listen(PORT, '0.0.0.0', () => {
+        console.log(`reporting-service listening on ${PORT}`);
+      });
+
+  notification-service:
+    enabled: true
+    port: 8082
+    env:
+      PORT: "8082"
+    secretName: notification-service-secrets
+    secretEnv:
+      - envKey: DISCORD_WEBHOOK_URL
+        secretKey: DISCORD_WEBHOOK_URL
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+      limits:
+        cpu: "300m"
+        memory: "192Mi"
+    script: |
+      const http = require('http');
+
+      const PORT = Number(process.env.PORT || 8082);
+      const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL || '';
+
+      const readJson = (req) =>
+        new Promise((resolve, reject) => {
+          let body = '';
+          req.on('data', (chunk) => {
+            body += chunk;
+            if (body.length > 1024 * 1024) {
+              reject(new Error('Payload too large'));
+              req.destroy();
+            }
+          });
+          req.on('end', () => {
+            try {
+              resolve(body ? JSON.parse(body) : {});
+            } catch {
+              reject(new Error('Invalid JSON'));
+            }
+          });
+          req.on('error', reject);
+        });
+
+      const json = (res, status, payload) => {
+        res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload));
+      };
+
+      const sendDiscord = async (payload) => {
+        if (!DISCORD_WEBHOOK_URL) {
+          throw new Error('DISCORD_WEBHOOK_URL is not set');
+        }
+
+        const message = payload.message || 'Notificare noua';
+        const details = payload.details || {};
+        const detailText = Object.entries(details)
+          .map(([k, v]) => `- ${k}: ${v}`)
+          .join('\n');
+
+        const content = detailText ? `${message}\n${detailText}` : message;
+        const response = await fetch(DISCORD_WEBHOOK_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content })
+        });
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(`Discord webhook failed (${response.status}): ${text}`);
+        }
+      };
+
+      const server = http.createServer(async (req, res) => {
+        try {
+          if (req.method === 'GET' && req.url === '/health') {
+            return json(res, 200, { ok: true });
+          }
+
+          if (req.method === 'POST' && req.url === '/notify') {
+            const payload = await readJson(req);
+            await sendDiscord(payload);
+            return json(res, 200, { ok: true });
+          }
+
+          return json(res, 404, { error: 'Not found' });
+        } catch (error) {
+          return json(res, 500, { error: error.message || 'Unexpected error' });
+        }
+      });
+
+      server.listen(PORT, '0.0.0.0', () => {
+        console.log(`notification-service listening on ${PORT}`);
+      });
+
+  invoice-service:
+    enabled: true
+    port: 8087
+    env:
+      PORT: "8087"
+      APP_BASE_URL: "http://calculatorgaz"
+    secretName: calculatorgaz-secrets
+    secretEnv:
+      - envKey: INTERNAL_API_KEY
+        secretKey: INTERNAL_API_KEY
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "256Mi"
+    script: |
+      const http = require('http');
+
+      const PORT = Number(process.env.PORT || 8087);
+      const APP_BASE_URL = (process.env.APP_BASE_URL || 'http://calculatorgaz').replace(/\/+$/, '');
+      const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
+
+      const readBody = (req) =>
+        new Promise((resolve, reject) => {
+          const chunks = [];
+          let total = 0;
+          req.on('data', (chunk) => {
+            total += chunk.length;
+            if (total > 20 * 1024 * 1024) {
+              reject(new Error('Payload too large'));
+              req.destroy();
+              return;
+            }
+            chunks.push(chunk);
+          });
+          req.on('end', () => resolve(Buffer.concat(chunks)));
+          req.on('error', reject);
+        });
+
+      const writeJson = (res, status, payload) => {
+        res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload));
+      };
+
+      const proxyRaw = async (targetPath, method, body, contentType) => {
+        const headers = { 'X-Internal-Api-Key': INTERNAL_API_KEY };
+        if (contentType) headers['Content-Type'] = contentType;
+        const response = await fetch(`${APP_BASE_URL}${targetPath}`, {
+          method,
+          headers,
+          body
+        });
+        const text = await response.text();
+        return {
+          status: response.status,
+          contentType: response.headers.get('content-type') || 'application/json; charset=utf-8',
+          body: text
+        };
+      };
+
+      const server = http.createServer(async (req, res) => {
+        try {
+          if (req.method === 'GET' && req.url === '/health') {
+            return writeJson(res, 200, { ok: true });
+          }
+
+          if (req.method === 'POST' && req.url === '/invoices/upload') {
+            const contentType = req.headers['content-type'] || '';
+            const body = await readBody(req);
+            const upstream = await proxyRaw('/api/internal/invoices/upload', 'POST', body, contentType);
+            res.writeHead(upstream.status, { 'Content-Type': upstream.contentType });
+            return res.end(upstream.body);
+          }
+
+          return writeJson(res, 404, { error: 'Not found' });
+        } catch (error) {
+          return writeJson(res, 500, { error: error.message || 'Unexpected error' });
+        }
+      });
+
+      server.listen(PORT, '0.0.0.0', () => {
+        console.log(`invoice-service listening on ${PORT}`);
+      });
+
+  password-reset-service:
+    enabled: true
+    port: 8086
+    env:
+      PORT: "8086"
+      APP_BASE_URL: "http://calculatorgaz"
+    secretName: calculatorgaz-secrets
+    secretEnv:
+      - envKey: INTERNAL_API_KEY
+        secretKey: INTERNAL_API_KEY
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "256Mi"
+    script: |
+      const http = require('http');
+
+      const PORT = Number(process.env.PORT || 8086);
+      const APP_BASE_URL = (process.env.APP_BASE_URL || 'http://calculatorgaz').replace(/\/+$/, '');
+      const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
+
+      const readJson = (req) =>
+        new Promise((resolve, reject) => {
+          let body = '';
+          req.on('data', (chunk) => {
+            body += chunk;
+            if (body.length > 1024 * 1024) {
+              reject(new Error('Payload too large'));
+              req.destroy();
+            }
+          });
+          req.on('end', () => {
+            try {
+              resolve(body ? JSON.parse(body) : {});
+            } catch {
+              reject(new Error('Invalid JSON'));
+            }
+          });
+          req.on('error', reject);
+        });
+
+      const writeJson = (res, status, payload) => {
+        res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload));
+      };
+
+      const proxyJson = async (targetPath, method, payload) => {
+        const response = await fetch(`${APP_BASE_URL}${targetPath}`, {
+          method,
+          headers: { 'Content-Type': 'application/json', 'X-Internal-Api-Key': INTERNAL_API_KEY },
+          body: payload ? JSON.stringify(payload) : undefined
+        });
+        const text = await response.text();
+        return {
+          status: response.status,
+          contentType: response.headers.get('content-type') || 'application/json; charset=utf-8',
+          body: text
+        };
+      };
+
+      const server = http.createServer(async (req, res) => {
+        try {
+          if (req.method === 'GET' && req.url === '/health') {
+            return writeJson(res, 200, { ok: true });
+          }
+
+          if (req.method === 'POST' && req.url === '/password-reset/request') {
+            const payload = await readJson(req);
+            const upstream = await proxyJson('/api/internal/auth/reset-password', 'POST', payload);
+            res.writeHead(upstream.status, { 'Content-Type': upstream.contentType });
+            return res.end(upstream.body);
+          }
+
+          if (req.method === 'POST' && req.url === '/password-reset/confirm') {
+            const payload = await readJson(req);
+            const upstream = await proxyJson('/api/internal/auth/reset-password/confirm', 'POST', payload);
+            res.writeHead(upstream.status, { 'Content-Type': upstream.contentType });
+            return res.end(upstream.body);
+          }
+
+          return writeJson(res, 404, { error: 'Not found' });
+        } catch (error) {
+          return writeJson(res, 500, { error: error.message || 'Unexpected error' });
+        }
+      });
+
+      server.listen(PORT, '0.0.0.0', () => {
+        console.log(`password-reset-service listening on ${PORT}`);
+      });
+
+  session-service:
+    enabled: true
+    port: 8088
+    env:
+      PORT: "8088"
+    secretName: calculatorgaz-secrets
+    secretEnv:
+      - envKey: JWT_SECRET
+        secretKey: JWT_SECRET
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+      limits:
+        cpu: "300m"
+        memory: "192Mi"
+    script: |
+      const http = require('http');
+      const crypto = require('crypto');
+
+      const PORT = Number(process.env.PORT || 8088);
+      const JWT_SECRET = process.env.JWT_SECRET || '';
+      const TOKEN_TTL = Number(process.env.TOKEN_TTL || 86400); // 24h
+
+      if (!JWT_SECRET) {
+        console.error('JWT_SECRET is required');
+        process.exit(1);
+      }
+
+      const toBase64Url = (buf) =>
+        buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+      const fromBase64Url = (str) =>
+        Buffer.from(str.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+
+      const sign = (payload) => {
+        const header = toBase64Url(Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })));
+        const now = Math.floor(Date.now() / 1000);
+        const body = toBase64Url(Buffer.from(JSON.stringify({ ...payload, iat: now, exp: now + TOKEN_TTL })));
+        const signature = toBase64Url(
+          crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${body}`).digest()
+        );
+        return `${header}.${body}.${signature}`;
+      };
+
+      const verify = (token) => {
+        const parts = token.split('.');
+        if (parts.length !== 3) throw new Error('Invalid token format');
+
+        const [header, body, signature] = parts;
+        const expected = toBase64Url(
+          crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${body}`).digest()
+        );
+
+        if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+          throw new Error('Invalid signature');
+        }
+
+        const payload = JSON.parse(fromBase64Url(body).toString());
+
+        if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
+          throw new Error('Token expired');
+        }
+
+        return payload;
+      };
+
+      const readJson = (req) =>
+        new Promise((resolve, reject) => {
+          let data = '';
+          req.on('data', (chunk) => {
+            data += chunk;
+            if (data.length > 64 * 1024) {
+              reject(new Error('Payload too large'));
+              req.destroy();
+            }
+          });
+          req.on('end', () => {
+            try { resolve(data ? JSON.parse(data) : {}); }
+            catch { reject(new Error('Invalid JSON')); }
+          });
+          req.on('error', reject);
+        });
+
+      const json = (res, status, payload) => {
+        res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload));
+      };
+
+      const server = http.createServer(async (req, res) => {
+        try {
+          if (req.method === 'GET' && req.url === '/health') {
+            return json(res, 200, { ok: true });
+          }
+
+          if (req.method === 'POST' && req.url === '/session/sign') {
+            const payload = await readJson(req);
+            const token = sign(payload);
+            return json(res, 200, { token });
+          }
+
+          if (req.method === 'POST' && req.url === '/session/verify') {
+            const { token } = await readJson(req);
+            if (!token) return json(res, 400, { error: 'Missing token' });
+            const payload = verify(token);
+            return json(res, 200, payload);
+          }
+
+          return json(res, 404, { error: 'Not found' });
+        } catch (error) {
+          return json(res, 401, { error: error.message || 'Unauthorized' });
+        }
+      });
+
+      server.listen(PORT, '0.0.0.0', () => {
+        console.log(`session-service listening on ${PORT}`);
+      });

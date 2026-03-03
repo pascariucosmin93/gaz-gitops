@@ -1,0 +1,16 @@
+{{- range $name, $svc := .Values.microservices }}
+{{- if $svc.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-script
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "gaz.labels" $ | nindent 4 }}
+    {{- include "gaz.selectorLabels" $name | nindent 4 }}
+data:
+  server.js: |
+{{ $svc.script | indent 4 }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,73 @@
+{{- range $name, $svc := .Values.microservices }}
+{{- if $svc.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "gaz.labels" $ | nindent 4 }}
+    {{- include "gaz.selectorLabels" $name | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "gaz.selectorLabels" $name | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "gaz.selectorLabels" $name | nindent 8 }}
+      annotations:
+        checksum/script: {{ $svc.script | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      {{- include "gaz.podSecurityContext" $ | nindent 6 }}
+      containers:
+        - name: {{ $name }}
+          image: node:20-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["node", "/app/server.js"]
+          ports:
+            - name: http
+              containerPort: {{ $svc.port }}
+              protocol: TCP
+          {{- include "gaz.containerSecurityContext" $ | nindent 10 }}
+          env:
+            {{- range $k, $v := $svc.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- if and $svc.secretName (gt (len (default (list) $svc.secretEnv)) 0) }}
+            {{- range $svc.secretEnv }}
+            - name: {{ .envKey }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $svc.secretName }}
+                  key: {{ .secretKey }}
+            {{- end }}
+            {{- end }}
+          resources:
+            {{- toYaml $svc.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ $svc.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ $svc.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          volumeMounts:
+            - name: app-script
+              mountPath: /app/server.js
+              subPath: server.js
+      volumes:
+        - name: app-script
+          configMap:
+            name: {{ $name }}-script
+{{- end }}
+{{- end }}

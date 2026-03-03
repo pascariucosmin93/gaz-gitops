@@ -1,0 +1,35 @@
+{{- if .Values.calculatorgaz.hpa.enabled }}
+{{- with .Values.calculatorgaz.hpa }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: calculatorgaz
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "gaz.labels" $ | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: calculatorgaz
+  minReplicas: {{ .minReplicas }}
+  maxReplicas: {{ .maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .targetMemoryUtilizationPercentage }}
+  {{- if .behavior }}
+  behavior:
+    {{- toYaml .behavior | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- end }}
