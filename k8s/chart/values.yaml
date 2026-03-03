@@ -12,7 +12,7 @@ networkPolicies:
 calculatorgaz:
   image:
     repository: registry.infraejobs.ro/infra/gaz/calculatorgaz
-    tag: "dd039c"
+    tag: "eda5ab"
     pullPolicy: IfNotPresent
 
   imagePullSecrets:
