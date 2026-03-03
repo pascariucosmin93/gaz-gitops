@@ -30,11 +30,11 @@ calculatorgaz:
 
   resources:
     requests:
-      cpu: "50m"
-      memory: "96Mi"
+      cpu: "250m"
+      memory: "128Mi"
     limits:
-      cpu: "500m"
-      memory: "256Mi"
+      cpu: "1000m"
+      memory: "384Mi"
 
   hpa:
     enabled: true
