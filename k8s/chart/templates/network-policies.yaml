@@ -1,0 +1,160 @@
+{{- if .Values.networkPolicies.enabled }}
+# Default deny all ingress in namespace
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "gaz.labels" $ | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+
+# calculatorgaz: allow ingress from anywhere on port 3000 (LoadBalancer)
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-calculatorgaz-ingress
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "gaz.labels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: calculatorgaz
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: 3000
+          protocol: TCP
+
+# Microservices: allow ingress only from calculatorgaz
+{{- range $name, $svc := .Values.microservices }}
+{{- if $svc.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-{{ $name }}-ingress
+  namespace: {{ $.Values.namespace }}
+  labels:
+    {{- include "gaz.labels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: {{ $name }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: calculatorgaz
+      ports:
+        - port: {{ $svc.port }}
+          protocol: TCP
+{{- end }}
+{{- end }}
+
+# calculatorgaz egress: allow to microservices, postgres, and DNS
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-calculatorgaz-egress
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "gaz.labels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: calculatorgaz
+  policyTypes:
+    - Egress
+  egress:
+    # DNS
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Microservices
+    {{- range $name, $svc := .Values.microservices }}
+    {{- if $svc.enabled }}
+    - to:
+        - podSelector:
+            matchLabels:
+              app: {{ $name }}
+      ports:
+        - port: {{ $svc.port }}
+          protocol: TCP
+    {{- end }}
+    {{- end }}
+    # PostgreSQL (in postgress namespace)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: postgress
+      ports:
+        - port: 5432
+          protocol: TCP
+    # S3 / external HTTPS (for SeaweedFS, Discord webhooks)
+    - ports:
+        - port: 443
+          protocol: TCP
+
+# Microservices egress: DNS + calculatorgaz (for callbacks) + external HTTPS
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-microservices-egress
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "gaz.labels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          {{- range $name, $svc := .Values.microservices }}
+          {{- if $svc.enabled }}
+          - {{ $name }}
+          {{- end }}
+          {{- end }}
+  policyTypes:
+    - Egress
+  egress:
+    # DNS
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Callback to calculatorgaz
+    - to:
+        - podSelector:
+            matchLabels:
+              app: calculatorgaz
+      ports:
+        - port: 3000
+          protocol: TCP
+    # PostgreSQL (some services may need DB access)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: postgress
+      ports:
+        - port: 5432
+          protocol: TCP
+    # External HTTPS (Discord webhooks, etc.)
+    - ports:
+        - port: 443
+          protocol: TCP
+{{- end }}
