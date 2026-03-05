@@ -7,6 +7,13 @@ networkPolicies:
   enabled: true
 
 # ---------------------------------------------------------------------------
+# Cilium Gateway API - direct routing for stateless microservices
+# ---------------------------------------------------------------------------
+gateway:
+  enabled: true
+  ip: "10.40.10.54"
+
+# ---------------------------------------------------------------------------
 # calculatorgaz - main Next.js application
 # ---------------------------------------------------------------------------
 calculatorgaz:
@@ -231,6 +238,7 @@ microservices:
   billing-service:
     enabled: true
     port: 8080
+    gatewayExposed: true
     env:
       PORT: "8080"
     secretName: ""
@@ -443,6 +451,7 @@ microservices:
   reporting-service:
     enabled: true
     port: 8081
+    gatewayExposed: true
     env:
       PORT: "8081"
       READING_SERVICE_URL: "http://reading-service:8084"

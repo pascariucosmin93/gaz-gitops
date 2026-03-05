@@ -1,0 +1,188 @@
+{{- if .Values.gateway.enabled }}
+# ---------------------------------------------------------------------------
+# Direct routes to stateless microservices (bypass Next.js)
+# ---------------------------------------------------------------------------
+
+# billing-service: POST /api/calculate -> /calculate
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: billing-direct
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "gaz.labels" $ | nindent 4 }}
+spec:
+  parentRefs:
+    - name: gaz-gateway
+  rules:
+    - matches:
+        - path:
+            type: Exact
+            value: /api/calculate
+          method: POST
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /calculate
+      backendRefs:
+        - name: billing-service
+          port: 8080
+
+# reporting-service: GET /api/reports/* -> /report/*
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: reporting-monthly
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "gaz.labels" $ | nindent 4 }}
+spec:
+  parentRefs:
+    - name: gaz-gateway
+  rules:
+    - matches:
+        - path:
+            type: Exact
+            value: /api/reports/monthly
+          method: GET
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /report/monthly
+      backendRefs:
+        - name: reporting-service
+          port: 8081
+
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: reporting-export-csv
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "gaz.labels" $ | nindent 4 }}
+spec:
+  parentRefs:
+    - name: gaz-gateway
+  rules:
+    - matches:
+        - path:
+            type: Exact
+            value: /api/reports/export/csv
+          method: GET
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /report/export.csv
+      backendRefs:
+        - name: reporting-service
+          port: 8081
+
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: reporting-export-pdf
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "gaz.labels" $ | nindent 4 }}
+spec:
+  parentRefs:
+    - name: gaz-gateway
+  rules:
+    - matches:
+        - path:
+            type: Exact
+            value: /api/reports/export/pdf
+          method: GET
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /report/export.pdf
+      backendRefs:
+        - name: reporting-service
+          port: 8081
+
+# ---------------------------------------------------------------------------
+# Routes through Next.js (auth, readings, invoices, OCR, admin, health)
+# ---------------------------------------------------------------------------
+
+# API routes that need Next.js (session/Prisma/orchestration)
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: nextjs-api
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "gaz.labels" $ | nindent 4 }}
+spec:
+  parentRefs:
+    - name: gaz-gateway
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/auth
+        - path:
+            type: PathPrefix
+            value: /api/readings
+        - path:
+            type: PathPrefix
+            value: /api/invoices
+        - path:
+            type: PathPrefix
+            value: /api/ocr
+        - path:
+            type: PathPrefix
+            value: /api/admin
+        - path:
+            type: PathPrefix
+            value: /api/health
+        - path:
+            type: PathPrefix
+            value: /api/settings
+        - path:
+            type: PathPrefix
+            value: /api/csrf
+      backendRefs:
+        - name: calculatorgaz
+          port: 80
+
+# ---------------------------------------------------------------------------
+# Frontend: Next.js serves HTML, JS, CSS, static assets
+# ---------------------------------------------------------------------------
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: nextjs-frontend
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "gaz.labels" $ | nindent 4 }}
+spec:
+  parentRefs:
+    - name: gaz-gateway
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: calculatorgaz
+          port: 80
+
+# ---------------------------------------------------------------------------
+# /api/internal/* has NO HTTPRoute -> Gateway returns 404 (defense-in-depth)
+# ---------------------------------------------------------------------------
+{{- end }}

@@ -13,7 +13,7 @@ spec:
   policyTypes:
     - Ingress
 
-# calculatorgaz: allow ingress from anywhere on port 3000 (LoadBalancer)
+# calculatorgaz: allow ingress from anywhere on port 3000 (LoadBalancer + Gateway)
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -63,6 +63,16 @@ spec:
         - podSelector:
             matchLabels:
               app: {{ $clientName }}
+      ports:
+        - port: {{ $svc.port }}
+          protocol: TCP
+    {{- end }}
+    {{- if and $.Values.gateway.enabled $svc.gatewayExposed }}
+    # Allow Cilium Gateway (Envoy in kube-system) to reach this service
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
       ports:
         - port: {{ $svc.port }}
           protocol: TCP
