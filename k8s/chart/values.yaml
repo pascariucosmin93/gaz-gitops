@@ -19,7 +19,7 @@ gateway:
 calculatorgaz:
   image:
     repository: registry.infraejobs.ro/infra/gaz/calculatorgaz
-    tag: "a087a0"
+    tag: "d1df8e"
     pullPolicy: IfNotPresent
 
   imagePullSecrets:
