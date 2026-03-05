@@ -6,6 +6,7 @@ metadata:
   namespace: {{ .Values.namespace }}
   labels:
     {{- include "gaz.labels" $ | nindent 4 }}
+    cilium.io/lb-pool: pool-2
   annotations:
     io.cilium/lb-ipam-ips: {{ .Values.gateway.ip | quote }}
 spec:
