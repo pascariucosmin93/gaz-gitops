@@ -1,0 +1,65 @@
+{{- if .Values.ocrService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ocr-service
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "gaz.labels" $ | nindent 4 }}
+    {{- include "gaz.selectorLabels" "ocr-service" | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "gaz.selectorLabels" "ocr-service" | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "gaz.selectorLabels" "ocr-service" | nindent 8 }}
+    spec:
+      imagePullSecrets:
+        {{- toYaml .Values.calculatorgaz.imagePullSecrets | nindent 8 }}
+      {{- include "gaz.podSecurityContext" $ | nindent 6 }}
+      containers:
+        - name: ocr-service
+          image: {{ .Values.ocrService.image.repository }}:{{ .Values.ocrService.image.tag }}
+          imagePullPolicy: {{ .Values.ocrService.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - name: http
+              containerPort: {{ .Values.ocrService.port }}
+              protocol: TCP
+          env:
+            {{- range $k, $v := .Values.ocrService.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- if and .Values.ocrService.secretName (gt (len (default (list) .Values.ocrService.secretEnv)) 0) }}
+            {{- range .Values.ocrService.secretEnv }}
+            - name: {{ .envKey }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.ocrService.secretName }}
+                  key: {{ .secretKey }}
+            {{- end }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.ocrService.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.ocrService.port }}
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.ocrService.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 20
+{{- end }}

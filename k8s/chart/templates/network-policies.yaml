@@ -80,6 +80,57 @@ spec:
 {{- end }}
 {{- end }}
 
+# ocr-service: allow ingress only from calculatorgaz
+{{- if .Values.ocrService.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ocr-service-ingress
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "gaz.labels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: ocr-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: calculatorgaz
+      ports:
+        - port: {{ .Values.ocrService.port }}
+          protocol: TCP
+
+# ocr-service egress: DNS + S3 (HTTPS)
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ocr-service-egress
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "gaz.labels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: ocr-service
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - ports:
+        - port: 443
+          protocol: TCP
+{{- end }}
+
 # calculatorgaz egress: allow to microservices, postgres, and DNS
 ---
 apiVersion: networking.k8s.io/v1
@@ -113,6 +164,16 @@ spec:
         - port: {{ $svc.port }}
           protocol: TCP
     {{- end }}
+    {{- end }}
+    # OCR service
+    {{- if .Values.ocrService.enabled }}
+    - to:
+        - podSelector:
+            matchLabels:
+              app: ocr-service
+      ports:
+        - port: {{ .Values.ocrService.port }}
+          protocol: TCP
     {{- end }}
     # PostgreSQL (in postgress namespace)
     - to:

@@ -1,0 +1,18 @@
+{{- if .Values.ocrService.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: ocr-service
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "gaz.labels" $ | nindent 4 }}
+    {{- include "gaz.selectorLabels" "ocr-service" | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "gaz.selectorLabels" "ocr-service" | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.ocrService.port }}
+      targetPort: {{ .Values.ocrService.port }}
+{{- end }}
