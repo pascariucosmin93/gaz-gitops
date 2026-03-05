@@ -346,6 +346,8 @@ microservices:
   reading-service:
     enabled: true
     port: 8084
+    allowedClients:
+      - reporting-service
     env:
       PORT: "8084"
       APP_BASE_URL: "http://calculatorgaz"

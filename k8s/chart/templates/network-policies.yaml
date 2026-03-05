@@ -58,6 +58,15 @@ spec:
       ports:
         - port: {{ $svc.port }}
           protocol: TCP
+    {{- range $clientName := $svc.allowedClients | default list }}
+    - from:
+        - podSelector:
+            matchLabels:
+              app: {{ $clientName }}
+      ports:
+        - port: {{ $svc.port }}
+          protocol: TCP
+    {{- end }}
 {{- end }}
 {{- end }}
 
@@ -145,6 +154,18 @@ spec:
       ports:
         - port: 3000
           protocol: TCP
+    # Inter-service communication
+    {{- range $name, $svc := .Values.microservices }}
+    {{- if $svc.enabled }}
+    - to:
+        - podSelector:
+            matchLabels:
+              app: {{ $name }}
+      ports:
+        - port: {{ $svc.port }}
+          protocol: TCP
+    {{- end }}
+    {{- end }}
     # PostgreSQL (some services may need DB access)
     - to:
         - namespaceSelector:
