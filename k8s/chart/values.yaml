@@ -443,7 +443,7 @@ microservices:
     port: 8081
     env:
       PORT: "8081"
-      APP_BASE_URL: "http://calculatorgaz"
+      READING_SERVICE_URL: "http://reading-service:8084"
     secretName: ""
     secretEnv: []
     resources:
@@ -457,7 +457,7 @@ microservices:
       const http = require('http');
 
       const PORT = Number(process.env.PORT || 8081);
-      const APP_BASE_URL = (process.env.APP_BASE_URL || 'http://calculatorgaz').replace(/\/+$/, '');
+      const READING_SERVICE_URL = (process.env.READING_SERVICE_URL || 'http://reading-service:8084').replace(/\/+$/, '');
 
       const json = (res, code, payload) => {
         res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -465,7 +465,7 @@ microservices:
       };
 
       const parseReadings = async (userId) => {
-        const response = await fetch(`${APP_BASE_URL}/api/readings?userId=${encodeURIComponent(userId)}`);
+        const response = await fetch(`${READING_SERVICE_URL}/readings?userId=${encodeURIComponent(userId)}`);
         if (!response.ok) {
           throw new Error(`Failed to fetch readings (${response.status})`);
         }
