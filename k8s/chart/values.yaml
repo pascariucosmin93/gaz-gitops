@@ -128,8 +128,8 @@ ocrService:
 
   image:
     repository: registry.infraejobs.ro/infra/gaz/ocr-service
-    tag: "latest"
-    pullPolicy: Always
+    tag: "ab07db"
+    pullPolicy: IfNotPresent
 
   env:
     PORT: "8089"
