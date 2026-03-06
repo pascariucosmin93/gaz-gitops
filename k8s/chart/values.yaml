@@ -19,7 +19,7 @@ gateway:
 calculatorgaz:
   image:
     repository: registry.infraejobs.ro/infra/gaz/calculatorgaz
-    tag: "5bd752"
+    tag: "668ef5"
     pullPolicy: IfNotPresent
 
   imagePullSecrets:
@@ -126,7 +126,7 @@ ocrService:
 
   image:
     repository: registry.infraejobs.ro/infra/gaz/ocr-service
-    tag: "5bd752"
+    tag: "668ef5"
     pullPolicy: IfNotPresent
 
   env:
