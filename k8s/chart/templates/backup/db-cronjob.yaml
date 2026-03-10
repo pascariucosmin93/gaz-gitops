@@ -35,11 +35,11 @@ spec:
                   drop: ["ALL"]
               env:
                 - name: PGHOST
-                  value: {{ $.Values.database.host | quote }}
+                  value: {{ .db.host | quote }}
                 - name: PGPORT
-                  value: {{ $.Values.database.port | quote }}
+                  value: {{ .db.port | quote }}
                 - name: PGDATABASE
-                  value: {{ $.Values.database.name | quote }}
+                  value: {{ .db.database | quote }}
                 - name: PGUSER
                   valueFrom:
                     secretKeyRef:
