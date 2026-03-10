@@ -14,6 +14,8 @@ spec:
       {{- include "gaz.selectorLabels" "calculatorgaz" | nindent 6 }}
   template:
     metadata:
+      annotations:
+        promotedAt: {{ $.Values.promotedAt | default "initial" | quote }}
       labels:
         {{- include "gaz.selectorLabels" "calculatorgaz" | nindent 8 }}
     spec:

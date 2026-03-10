@@ -16,11 +16,13 @@ gateway:
 # ---------------------------------------------------------------------------
 # calculatorgaz - main Next.js application
 # ---------------------------------------------------------------------------
+promotedAt: "2026-03-10T10:00:00Z"
+
 calculatorgaz:
   image:
     repository: registry.infraejobs.ro/infra/gaz/calculatorgaz
-    tag: "9e3b16"
-    pullPolicy: IfNotPresent
+    tag: "latest"
+    pullPolicy: Always
 
   imagePullSecrets:
     - name: registry-infraejobs
@@ -126,8 +128,8 @@ ocrService:
 
   image:
     repository: registry.infraejobs.ro/infra/gaz/ocr-service
-    tag: "9e3b16"
-    pullPolicy: IfNotPresent
+    tag: "latest"
+    pullPolicy: Always
 
   env:
     PORT: "8089"
