@@ -1,6 +1,14 @@
 namespace: gaz
 
 # ---------------------------------------------------------------------------
+# Database
+# ---------------------------------------------------------------------------
+database:
+  name: gaz
+  host: "postgres.postgress.svc.cluster.local"
+  port: "5432"
+
+# ---------------------------------------------------------------------------
 # Network Policies - restrict traffic between pods
 # ---------------------------------------------------------------------------
 networkPolicies:
@@ -1075,9 +1083,6 @@ backup:
     schedule: "0 2 * * *"
     bucket: backup-db
     retentionDays: 30
-    host: "postgres.postgress.svc.cluster.local"
-    port: "5432"
-    database: "gaz"
     pgSecretName: calculatorgaz-secrets
 
   secrets:
