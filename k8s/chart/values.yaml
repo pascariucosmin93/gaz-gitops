@@ -21,7 +21,7 @@ promotedAt: "2026-03-10T19:04:49Z"
 calculatorgaz:
   image:
     repository: ghcr.io/pascariucosmin93/calculatorgaz
-    tag: "0.0.10"
+    tag: "1.0.0"
     pullPolicy: Always
 
   imagePullSecrets: []
@@ -127,7 +127,7 @@ ocrService:
 
   image:
     repository: ghcr.io/pascariucosmin93/ocr-service
-    tag: "0.0.10"
+    tag: "1.0.0"
     pullPolicy: Always
 
   env:
