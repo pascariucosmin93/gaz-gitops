@@ -17,8 +17,10 @@ spec:
       labels:
         {{- include "gaz.selectorLabels" "ocr-service" | nindent 8 }}
     spec:
+      {{- if gt (len (default (list) .Values.calculatorgaz.imagePullSecrets)) 0 }}
       imagePullSecrets:
         {{- toYaml .Values.calculatorgaz.imagePullSecrets | nindent 8 }}
+      {{- end }}
       {{- include "gaz.podSecurityContext" $ | nindent 6 }}
       containers:
         - name: ocr-service

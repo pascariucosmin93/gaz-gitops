@@ -20,12 +20,11 @@ promotedAt: "2026-03-10T19:04:49Z"
 
 calculatorgaz:
   image:
-    repository: registry.infraejobs.ro/infra/gaz/calculatorgaz
+    repository: ghcr.io/pascariucosmin93/calculatorgaz
     tag: "latest"
     pullPolicy: Always
 
-  imagePullSecrets:
-    - name: registry-infraejobs
+  imagePullSecrets: []
 
   replicaCount: 1
 
@@ -127,9 +126,9 @@ ocrService:
   port: 8089
 
   image:
-    repository: registry.infraejobs.ro/infra/gaz/ocr-service
-    tag: "ab07db"
-    pullPolicy: IfNotPresent
+    repository: ghcr.io/pascariucosmin93/ocr-service
+    tag: "latest"
+    pullPolicy: Always
 
   env:
     PORT: "8089"

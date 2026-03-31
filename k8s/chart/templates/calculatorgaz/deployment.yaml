@@ -19,8 +19,10 @@ spec:
       labels:
         {{- include "gaz.selectorLabels" "calculatorgaz" | nindent 8 }}
     spec:
+      {{- if gt (len (default (list) .imagePullSecrets)) 0 }}
       imagePullSecrets:
         {{- toYaml .imagePullSecrets | nindent 8 }}
+      {{- end }}
       securityContext:
         runAsNonRoot: true
         fsGroup: 1001
