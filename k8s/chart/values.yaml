@@ -98,6 +98,8 @@ calculatorgaz:
       secretKey: INTERNAL_API_KEY
     - envKey: ADMIN_PASSWORD
       secretKey: ADMIN_PASSWORD
+    - envKey: ADMIN_SESSION_SECRET
+      secretKey: ADMIN_SESSION_SECRET
 
   initSecretEnv:
     - envKey: PGPASSWORD
