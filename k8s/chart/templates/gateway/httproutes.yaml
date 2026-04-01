@@ -116,7 +116,7 @@ spec:
           port: 8081
 
 # ---------------------------------------------------------------------------
-# Routes through Next.js (auth, readings, invoices, OCR, admin, health)
+# Routes through Next.js (auth, readings, invoices, admin, health)
 # ---------------------------------------------------------------------------
 
 # API routes that need Next.js (session/Prisma/orchestration)
@@ -142,9 +142,6 @@ spec:
         - path:
             type: PathPrefix
             value: /api/invoices
-        - path:
-            type: PathPrefix
-            value: /api/ocr
         - path:
             type: PathPrefix
             value: /api/admin
