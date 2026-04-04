@@ -85,10 +85,12 @@ spec:
               port: {{ .probes.readiness.port }}
             initialDelaySeconds: {{ .probes.readiness.initialDelaySeconds }}
             periodSeconds: {{ .probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .probes.readiness.timeoutSeconds }}
           livenessProbe:
             httpGet:
               path: {{ .probes.liveness.path }}
               port: {{ .probes.liveness.port }}
             initialDelaySeconds: {{ .probes.liveness.initialDelaySeconds }}
             periodSeconds: {{ .probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .probes.liveness.timeoutSeconds }}
 {{- end }}
