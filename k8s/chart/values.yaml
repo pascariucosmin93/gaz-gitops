@@ -16,19 +16,19 @@ gateway:
 # ---------------------------------------------------------------------------
 # calculatorgaz - main Next.js application
 # ---------------------------------------------------------------------------
-promotedAt: "2026-03-10T19:04:49Z"
+promotedAt: "2026-11-05T20:49:44Z"
 
 calculatorgaz:
   image:
     repository: ghcr.io/pascariucosmin93/gaz
-    tag: "0.0.26"
+    tag: "2.0.1"
     pullPolicy: Always
 
   # Imaginea migrator (Prisma migrate deploy) rulează ca Job Argo CD PreSync
   # înaintea fiecărui rollout; tag-ul se actualizează odată cu cel al aplicației.
   migrator:
     enabled: true
-    tag: "migrator-0.0.26"
+    tag: "migrator-2.0.1"
 
   imagePullSecrets: []
 
