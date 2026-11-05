@@ -19,7 +19,7 @@ spec:
       labels:
         {{- include "gaz.selectorLabels" $name | nindent 8 }}
       annotations:
-        checksum/script: {{ $svc.script | sha256sum }}
+        checksum/script: {{ $.Files.Get (printf "scripts/%s" $svc.scriptFile) | sha256sum }}
     spec:
       automountServiceAccountToken: false
       {{- include "gaz.podSecurityContext" $ | nindent 6 }}
@@ -27,7 +27,7 @@ spec:
         - name: {{ $name }}
           image: node:20-alpine
           imagePullPolicy: IfNotPresent
-          command: ["node", "/app/server.js"]
+          command: ["node", "/app/{{ $svc.scriptFile }}"]
           ports:
             - name: http
               containerPort: {{ $svc.port }}
@@ -37,6 +37,10 @@ spec:
             {{- range $k, $v := $svc.env }}
             - name: {{ $k }}
               value: {{ $v | quote }}
+            {{- end }}
+            {{- range $svc.secretFiles }}
+            - name: {{ .envKey }}
+              value: /run/secrets/{{ .secretKey }}
             {{- end }}
             {{- if and $svc.secretName (gt (len (default (list) $svc.secretEnv)) 0) }}
             {{- range $svc.secretEnv }}
@@ -63,11 +67,26 @@ spec:
             periodSeconds: 20
           volumeMounts:
             - name: app-script
-              mountPath: /app/server.js
-              subPath: server.js
+              mountPath: /app/{{ $svc.scriptFile }}
+              subPath: {{ $svc.scriptFile }}
+            {{- if $svc.secretFiles }}
+            - name: secret-files
+              mountPath: /run/secrets
+              readOnly: true
+            {{- end }}
       volumes:
         - name: app-script
           configMap:
             name: {{ $name }}-script
+        {{- if $svc.secretFiles }}
+        - name: secret-files
+          secret:
+            secretName: {{ $svc.secretName }}
+            items:
+              {{- range $svc.secretFiles }}
+              - key: {{ .secretKey }}
+                path: {{ .secretKey }}
+              {{- end }}
+        {{- end }}
 {{- end }}
 {{- end }}
