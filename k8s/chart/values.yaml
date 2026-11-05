@@ -1,5 +1,10 @@
 namespace: gaz
 
+# Postgres on-prem (postgress.cosmin.home); NetworkPolicy permite egress 5432 către acest IP.
+externalPostgres:
+  host: postgress.cosmin.home
+  cidr: 192.168.1.18/32
+
 # ---------------------------------------------------------------------------
 # Network Policies - restrict traffic between pods
 # ---------------------------------------------------------------------------

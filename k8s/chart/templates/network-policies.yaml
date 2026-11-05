@@ -122,6 +122,13 @@ spec:
       ports:
         - port: 5432
           protocol: TCP
+    # PostgreSQL on-prem ({{ .Values.externalPostgres.host }})
+    - to:
+        - ipBlock:
+            cidr: {{ .Values.externalPostgres.cidr }}
+      ports:
+        - port: 5432
+          protocol: TCP
     # S3 / external HTTPS (for SeaweedFS, Discord webhooks)
     - ports:
         - port: 443
@@ -181,6 +188,13 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: postgress
+      ports:
+        - port: 5432
+          protocol: TCP
+    # PostgreSQL on-prem ({{ .Values.externalPostgres.host }})
+    - to:
+        - ipBlock:
+            cidr: {{ .Values.externalPostgres.cidr }}
       ports:
         - port: 5432
           protocol: TCP
