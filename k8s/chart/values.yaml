@@ -70,9 +70,6 @@ calculatorgaz:
             value: 50
             periodSeconds: 60
 
-  initContainer:
-    image: postgres:16-alpine
-
   env:
     HOSTNAME: "0.0.0.0"
     RESET_PASSWORD_BASE_URL: "https://reset.gaz.cosmin-lab.cloud/"
@@ -117,12 +114,6 @@ calculatorgaz:
       secretKey: ADMIN_PASSWORD
     - envKey: ADMIN_SESSION_SECRET
       secretKey: ADMIN_SESSION_SECRET
-
-  initSecretEnv:
-    - envKey: PGPASSWORD
-      secretKey: POSTGRES_PASSWORD
-    - envKey: POSTGRES_USER
-      secretKey: POSTGRES_USER
 
   probes:
     readiness:
