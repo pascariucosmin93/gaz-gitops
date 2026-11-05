@@ -1,0 +1,55 @@
+{{- if .Values.calculatorgaz.migrator.enabled }}
+{{- with .Values.calculatorgaz }}
+# Migrarea Prisma rulează înaintea fiecărui rollout (hook Argo CD PreSync).
+# Dacă migrarea eșuează, sincronizarea se oprește și versiunea veche rămâne activă.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: calculatorgaz-migrate-{{ .migrator.tag | replace "migrator-" "" | replace "." "-" | lower | trunc 40 }}
+  namespace: {{ $.Values.namespace }}
+  labels:
+    {{- include "gaz.labels" $ | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        {{- include "gaz.selectorLabels" "calculatorgaz-migrate" | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      {{- if gt (len (default (list) .imagePullSecrets)) 0 }}
+      imagePullSecrets:
+        {{- toYaml .imagePullSecrets | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+      containers:
+        - name: migrate
+          image: {{ .image.repository }}:{{ .migrator.tag }}
+          imagePullPolicy: {{ .image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .secretName }}
+                  key: DATABASE_URL
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+{{- end }}
+{{- end }}

@@ -10,7 +10,7 @@ metadata:
     {{- include "gaz.labels" $ | nindent 4 }}
     {{- include "gaz.selectorLabels" $name | nindent 4 }}
 data:
-  server.js: |
-{{ $svc.script | indent 4 }}
+  {{ $svc.scriptFile }}: |
+{{ $.Files.Get (printf "scripts/%s" $svc.scriptFile) | indent 4 }}
 {{- end }}
 {{- end }}
